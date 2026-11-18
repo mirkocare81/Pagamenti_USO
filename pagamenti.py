@@ -20,7 +20,6 @@ def _safe_get_event_loop():
 
 asyncio.get_event_loop = _safe_get_event_loop
 
-import io
 import json
 import os
 import urllib.parse
@@ -29,7 +28,10 @@ import streamlit as st
 
 # Configurazione della pagina
 st.set_page_config(
-    page_title="Gestione Incassi - USO Nuvolento", page_icon="⚽", layout="centered"
+    page_title="Gestione Incassi - USO Nuvolento",
+    page_icon="⚽",
+    layout="centered",
+    initial_sidebar_state="collapsed",
 )
 
 # --- GESTIONE PERSISTENZA DATI (FILE JSON) ---
@@ -90,9 +92,8 @@ def salva_dati(progetti):
         json.dump(progetti, f, ensure_ascii=False, indent=4)
 
 
-# --- FUNZIONE PER ESPORTARE IN EXCEL ---
-def genera_excel(progetto_nome, dati_progetto):
-    output = io.BytesIO()
+# --- FUNZIONE PER ESPORTARE IN CSV ---
+def genera_csv(progetto_nome, dati_progetto):
     giocatori = dati_progetto["giocatori"]
     pagamenti = dati_progetto["pagamenti"]
     partecipanti = dati_progetto.get("partecipanti", {})
@@ -131,13 +132,11 @@ def genera_excel(progetto_nome, dati_progetto):
         )
     )
 
-    with pd.ExcelWriter(output, engine="openpyxl") as writer:
-        df.to_excel(writer, index=False, sheet_name="Report Pagamenti")
-
-    return output.getvalue()
+    # Restituisce il CSV codificato in utf-8-sig per la perfetta compatibilità con Excel
+    return df.to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")
 
 
-# --- CSS PERSONALIZZATO (SFONDO CHIARO E SCRITTE SCURE SENZA TAGLI) ---
+# --- CSS PERSONALIZZATO (FORZATURA RIGA UNICA ASSOLUTA) ---
 st.markdown(
     """
     <style>
@@ -156,10 +155,24 @@ st.markdown(
             color: #0f172a !important;
         }
         
+        [data-testid="stHorizontalBlock"] {
+            flex-wrap: nowrap !important;
+            align-items: center !important;
+            gap: 4px !important;
+        }
+        
+        [data-testid="stColumn"] {
+            min-width: 0 !important;
+            flex: 1 1 auto !important;
+        }
+        
         .stButton button {
-            border-radius: 8px;
+            border-radius: 6px;
             font-weight: 600;
-            transition: all 0.3s ease;
+            min-height: 32px;
+            max-height: 36px;
+            padding: 0px 4px !important;
+            font-size: 0.8rem;
         }
         
         button[kind="primary"] {
@@ -168,34 +181,30 @@ st.markdown(
             color: white !important;
             box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
         }
-        button[kind="primary"]:hover {
-            background: linear-gradient(135deg, #059669 0%, #047857 100%);
-            box-shadow: 0 6px 16px rgba(16, 185, 129, 0.4);
-        }
         
-        /* Ottimizzazione dei box totali per evitare tagli di testo */
         div[data-testid="stMetric"] {
             background-color: #ffffff;
-            padding: 12px 15px;
+            padding: 10px 12px;
             border-radius: 12px;
             border: 1px solid #e2e8f0;
             box-shadow: 0 2px 8px rgba(0,0,0,0.05);
             height: auto !important;
-            min-height: 95px;
+            min-height: 90px;
+            margin-bottom: 8px;
         }
         div[data-testid="stMetric"] label {
             color: #64748b !important;
             font-weight: 500;
             white-space: normal !important;
             word-break: break-word !important;
-            font-size: 0.85rem !important;
+            font-size: 0.8rem !important;
         }
         div[data-testid="stMetric"] div[data-testid="stMetricValue"] {
             color: #0f172a !important;
             font-weight: 700;
             white-space: normal !important;
             word-break: break-word !important;
-            font-size: 1.05rem !important;
+            font-size: 0.95rem !important;
         }
         
         details {
@@ -211,6 +220,17 @@ st.markdown(
             color: #0f172a !important;
             border-radius: 8px !important;
             border-color: #cbd5e1 !important;
+        }
+
+        @media (max-width: 640px) {
+            .block-container {
+                padding-left: 4px !important;
+                padding-right: 4px !important;
+                padding-top: 15px !important;
+            }
+            h1 {
+                font-size: 1.4rem !important;
+            }
         }
     </style>
 """,
@@ -232,11 +252,11 @@ for proj_name, data in st.session_state.progetti.items():
 
 # Intestazione App
 st.markdown(
-    "<h1 style='text-align: center; margin-bottom: 0;'>⚽ Gestione Incassi Tornei</h1>",
+    "<h1 style='text-align: center; margin-bottom: 0;'>⚽ Gestione Incassi</h1>",
     unsafe_allow_html=True,
 )
 st.markdown(
-    "<p style='text-align: center; color: #64748b; margin-top: 5px;'>USO Nuvolento - Monitoraggio Quote Squadra</p>",
+    "<p style='text-align: center; color: #64748b; margin-top: 2px; font-size: 0.9em;'>USO Nuvolento - Monitoraggio Quote</p>",
     unsafe_allow_html=True,
 )
 st.markdown("---")
@@ -253,12 +273,12 @@ with col_sel:
     )
 
 with col_add:
-    with st.popover("➕ Nuovo Progetto", use_container_width=True):
+    with st.popover("➕ Nuovo", use_container_width=True):
         nuovo_nome = st.text_input("Nome Progetto")
         nuova_quota = st.number_input(
-            "Quota a persona (€)", min_value=0, value=260, step=10
+            "Quota (€)", min_value=0, value=260, step=10
         )
-        if st.button("Crea Progetto", use_container_width=True):
+        if st.button("Crea", use_container_width=True):
             if nuovo_nome and nuovo_nome not in st.session_state.progetti:
                 st.session_state.progetti[nuovo_nome] = {
                     "quota": nuova_quota,
@@ -267,7 +287,7 @@ with col_add:
                     "partecipanti": {},
                 }
                 salva_dati(st.session_state.progetti)
-                st.success(f"Progetto '{nuovo_nome}' creato!")
+                st.success(f"'{nuovo_nome}' creato!")
                 st.rerun()
 
 dati_attivi = st.session_state.progetti[progetto_selezionato]
@@ -299,50 +319,50 @@ percentuale = (
 
 if tot_giocatori > 0 and spunte_attuali == tot_giocatori:
     st.balloons()
-    st.success("🎉 **Ben fatto, hai incassato il 100%!** 🏆")
+    st.success("🎉 **Incassato il 100%!** 🏆")
 
 st.markdown(
-    f"<h4 style='margin-top: 15px;'>📋 {progetto_selezionato}</h4>",
+    f"<h4 style='margin-top: 10px; font-size: 1.1rem;'>📋 {progetto_selezionato}</h4>",
     unsafe_allow_html=True,
 )
-st.write(f"Quota individuale base: **{quota_unitaria} €**")
+st.write(f"Quota base: **{quota_unitaria} €**")
 
 st.progress(
-    percentuale, text=f"Progresso incassi giocatori: {int(percentuale * 100)}%"
+    percentuale, text=f"Progresso: {int(percentuale * 100)}%"
 )
 
 # --- SEZIONE 2: Aggiunta rapida di un giocatore al progetto ---
-with st.expander("➕ Aggiungi un nuovo giocatore alla lista"):
-    nuovo_giocatore = st.text_input("Nome e Cognome del giocatore (es. Mario Rossi)")
-    if st.button("Aggiungi Giocatore alla Lista"):
+with st.expander("➕ Aggiungi Giocatore"):
+    nuovo_giocatore = st.text_input("Nome e Cognome (es. Mario Rossi)")
+    if st.button("Aggiungi alla Lista", use_container_width=True):
         if nuovo_giocatore and nuovo_giocatore not in giocatori:
             dati_attivi["giocatori"].append(nuovo_giocatore)
             dati_attivi["giocatori"] = ordina_per_cognome(dati_attivi["giocatori"])
             dati_attivi["pagamenti"][nuovo_giocatore] = False
             dati_attivi["partecipanti"][nuovo_giocatore] = 1
             salva_dati(st.session_state.progetti)
-            st.success(f"Aggiunto e ordinato: {nuovo_giocatore}")
+            st.success(f"Aggiunto: {nuovo_giocatore}")
             st.rerun()
 
-# --- SEZIONE 3: Lista interattiva con partecipanti e salvataggio automatico ---
+# --- SEZIONE 3: Lista interattiva con larghezze ottimizzate per riga unica ---
 st.markdown("---")
 st.markdown(
-    "<p style='color: #64748b; font-size: 0.9em; margin-bottom: 15px;'>Imposta le persone al seguito e spunta i pagamenti: ogni modifica è salvata in tempo reale.</p>",
+    "<p style='color: #64748b; font-size: 0.85em; margin-bottom: 10px;'>Gestisci spunte e partecipanti sulla stessa riga (salvataggio automatico).</p>",
     unsafe_allow_html=True,
 )
 
 if not giocatori:
-    st.info(
-        "Nessun giocatore in lista. Aggiungine uno usando il menu a tendina qui sopra."
-    )
+    st.info("Nessun giocatore in lista. Aggiungine uno sopra.")
 else:
     for giocatore in list(giocatori):
         is_pagato = pagamenti_dict.get(giocatore, False)
         num_part_corrente = partecipanti_dict.get(giocatore, 1)
 
-        col_chk, col_num, col_badge, col_del = st.columns([2.2, 1.2, 1, 1])
+        st.markdown('<div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 4px 6px; margin-bottom: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.02);">', unsafe_allow_html=True)
+        
+        c_name, c_num, c_badge, c_del = st.columns([3.8, 1.0, 0.9, 0.5], gap="small")
 
-        with col_chk:
+        with c_name:
             nuovo_stato = st.checkbox(
                 f"{giocatore}", value=is_pagato, key=f"chk_{giocatore}"
             )
@@ -351,7 +371,7 @@ else:
                 salva_dati(st.session_state.progetti)
                 st.rerun()
 
-        with col_num:
+        with c_num:
             nuovo_num = st.number_input(
                 "Persone",
                 min_value=1,
@@ -365,28 +385,29 @@ else:
                 salva_dati(st.session_state.progetti)
                 st.rerun()
 
-        with col_badge:
+        with c_badge:
             if is_pagato:
                 st.markdown(
-                    "<span style='background-color: #d1fae5; color: #065f46; padding: 4px 8px; border-radius: 6px; font-size: 0.75em; font-weight: 600;'>PAGATO</span>",
+                    "<div style='padding-top: 6px; text-align: center;'><span style='background-color: #d1fae5; color: #065f46; padding: 2px 4px; border-radius: 4px; font-size: 0.6em; font-weight: 700;'>PAGATO</span></div>",
                     unsafe_allow_html=True,
                 )
             else:
                 st.markdown(
-                    "<span style='background-color: #fee2e2; color: #991b1b; padding: 4px 8px; border-radius: 6px; font-size: 0.75em; font-weight: 600;'>IN ATTESA</span>",
+                    "<div style='padding-top: 6px; text-align: center;'><span style='background-color: #fee2e2; color: #991b1b; padding: 2px 4px; border-radius: 4px; font-size: 0.6em; font-weight: 700;'>ATTESA</span></div>",
                     unsafe_allow_html=True,
                 )
 
-        with col_del:
-            if st.button("🗑️ Rimuovi", key=f"del_{giocatore}", use_container_width=True):
+        with c_del:
+            if st.button("🗑️", key=f"del_{giocatore}", use_container_width=True, help=f"Rimuovi {giocatore}"):
                 dati_attivi["giocatori"].remove(giocatore)
                 if giocatore in dati_attivi["pagamenti"]:
                     del dati_attivi["pagamenti"][giocatore]
                 if giocatore in dati_attivi["partecipanti"]:
                     del dati_attivi["partecipanti"][giocatore]
                 salva_dati(st.session_state.progetti)
-                st.success(f"Rimosso: {giocatore}")
                 st.rerun()
+
+        st.markdown('</div>', unsafe_allow_html=True)
 
 # Ricalcolo finale aggiornato
 valore_totale_atteso = sum(
@@ -398,13 +419,13 @@ valore_incassato = sum(
     if pagamenti_dict.get(g, False)
 )
 
-# --- SEZIONE 4: Riepilogo Finanziario ed Esportazione ---
+# --- SEZIONE 4: Riepilogo Finanziario ed Esportazione CSV ---
 st.markdown("<br>", unsafe_allow_html=True)
 st.markdown("### 📊 Riepilogo Finanziario")
 
 m1, m2, m3 = st.columns(3)
 m1.metric(
-    "Giocatori / Partecipanti", 
+    "Giocatori / Persone", 
     f"{spunte_attuali}/{tot_giocatori} ({partecipanti_paganti}/{totale_partecipanti_teorico} pers.)"
 )
 m2.metric("Incassato", f"{valore_incassato} €")
@@ -412,7 +433,7 @@ m3.metric("Mancante", f"{valore_totale_atteso - valore_incassato} €")
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-excel_data = genera_excel(progetto_selezionato, dati_attivi)
+csv_data = genera_csv(progetto_selezionato, dati_attivi)
 nome_file_safe = (
     progetto_selezionato.lower()
     .replace(" ", "_")
@@ -421,18 +442,18 @@ nome_file_safe = (
 )
 
 st.download_button(
-    label="📥 Scarica Report in Excel (.xlsx)",
-    data=excel_data,
-    file_name=f"report_{nome_file_safe}.xlsx",
-    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    label="📥 Scarica Report CSV (.csv)",
+    data=csv_data,
+    file_name=f"report_{nome_file_safe}.csv",
+    mime="text/csv",
     use_container_width=True,
 )
 
 # --- SEZIONE 5: Generatore Messaggio WhatsApp per Promemoria ---
 st.markdown("<br>", unsafe_allow_html=True)
-with st.expander("📱 Genera Messaggio WhatsApp Promemoria"):
+with st.expander("📱 Genera Promemoria WhatsApp"):
     st.markdown(
-        "<p style='color: #64748b; font-size: 0.9em;'>Crea un promemoria precompilato con l'elenco di chi non ha ancora saldato la quota per il progetto attivo.</p>",
+        "<p style='color: #64748b; font-size: 0.85em;'>Crea un promemoria con l'elenco di chi non ha ancora saldato.</p>",
         unsafe_allow_html=True,
     )
 
@@ -441,9 +462,7 @@ with st.expander("📱 Genera Messaggio WhatsApp Promemoria"):
     ]
 
     if not non_pagati:
-        st.success(
-            "Ottimo! Tutti i giocatori in elenco hanno saldato il pagamento. Non ci sono promemoria da inviare! 🎉"
-        )
+        st.success("Tutti in regola! Nessun promemoria da inviare. 🎉")
     else:
         testo_msg = f"⚽ *USO Nuvolento - Promemoria Quote*\n"
         testo_msg += f"Progetto: *{progetto_selezionato}*\n\n"
@@ -461,22 +480,16 @@ with st.expander("📱 Genera Messaggio WhatsApp Promemoria"):
         testo_msg += (
             f"\nTotale da raccogliere: *{totale_da_incassare_rimanente} €*\n"
         )
-        testo_msg += "Vi invitiamo a regolarizzare la posizione il prima possibile. Grazie per la collaborazione! 🔴🔵"
+        testo_msg += "Vi invitiamo a regolarizzare la posizione. Grazie! 🔴🔵"
 
         messaggio_finale = st.text_area(
-            "Anteprima messaggio WhatsApp:", value=testo_msg, height=220
+            "Testo WhatsApp:", value=testo_msg, height=180
         )
 
         encoded_msg = urllib.parse.quote(messaggio_finale)
         whatsapp_url = f"https://wa.me/?text={encoded_msg}"
 
-        col_wa1, col_wa2 = st.columns(2)
-        with col_wa1:
-            st.markdown(
-                f'<a href="{whatsapp_url}" target="_blank"><button style="width:100%; background-color:#25d366; color:white; border:none; padding:10px 20px; border-radius:8px; font-weight:600; cursor:pointer;">💬 Apri su WhatsApp</button></a>',
-                unsafe_allow_html=True,
-            )
-        with col_wa2:
-            st.info(
-                "💡 Puoi copiare il testo qui sopra o cliccare direttamente per inviarlo."
-            )
+        st.markdown(
+            f'<a href="{whatsapp_url}" target="_blank"><button style="width:100%; background-color:#25d366; color:white; border:none; padding:12px 20px; border-radius:8px; font-weight:600; cursor:pointer; text-align:center;">💬 Apri su WhatsApp</button></a>',
+            unsafe_allow_html=True,
+        )
