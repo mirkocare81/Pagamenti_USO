@@ -20,6 +20,7 @@ def _safe_get_event_loop():
 
 asyncio.get_event_loop = _safe_get_event_loop
 
+from datetime import datetime
 import json
 import os
 import urllib.parse
@@ -58,12 +59,11 @@ def get_importi_spunte(quota_unitaria):
 
 
 def calcola_quota_giocatore(stato_record, quota_unitaria, num_persone):
-    """Restituisce (importo_incassato, stato_testo) per un giocatore."""
+    """Restituisce (importo_incassato, stato_testo, has_acconto, has_pagato)."""
     if isinstance(stato_record, dict):
         has_acconto = bool(stato_record.get("acconto", False))
         has_pagato = bool(stato_record.get("pagato", False))
     else:
-        # Retrocompatibilità con vecchio formato booleano
         has_acconto = False
         has_pagato = bool(stato_record)
 
@@ -89,16 +89,19 @@ def carica_dati():
         try:
             with open(FILE_DATI, "r", encoding="utf-8") as f:
                 dati = json.load(f)
-                for proj in dati.values():
-                    if "giocatori" in proj:
-                        proj["giocatori"] = ordina_per_cognome(proj["giocatori"])
-                        if "partecipanti" not in proj:
-                            proj["partecipanti"] = {
-                                g: 1 for g in proj["giocatori"]
-                            }
-                        if "pagamenti" not in proj:
-                            proj["pagamenti"] = {}
-                return dati
+                if isinstance(dati, dict) and dati:
+                    for proj in dati.values():
+                        if "giocatori" in proj:
+                            proj["giocatori"] = ordina_per_cognome(
+                                proj["giocatori"]
+                            )
+                            if "partecipanti" not in proj:
+                                proj["partecipanti"] = {
+                                    g: 1 for g in proj["giocatori"]
+                                }
+                            if "pagamenti" not in proj:
+                                proj["pagamenti"] = {}
+                    return dati
         except Exception:
             pass
 
@@ -134,6 +137,7 @@ def carica_dati():
 def salva_dati(progetti):
     with open(FILE_DATI, "w", encoding="utf-8") as f:
         json.dump(progetti, f, ensure_ascii=False, indent=4)
+    st.session_state.ultimo_salvataggio = datetime.now().strftime("%H:%M:%S")
 
 
 # --- FUNZIONE PER ESPORTARE IN CSV ---
@@ -222,16 +226,16 @@ st.markdown(
             border-radius: 6px;
             font-weight: 600;
             min-height: 32px;
-            max-height: 36px;
-            padding: 0px 4px !important;
+            max-height: 38px;
+            padding: 0px 6px !important;
             font-size: 0.8rem;
         }
 
         button[kind="primary"] {
-            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-            border: none;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+            border: none !important;
             color: white !important;
-            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
         }
 
         div[data-testid="stMetric"] {
@@ -292,6 +296,13 @@ st.markdown(
 # Inizializzazione dello stato caricando dal file JSON
 if "progetti" not in st.session_state:
     st.session_state.progetti = carica_dati()
+
+if "ultimo_salvataggio" not in st.session_state:
+    st.session_state.ultimo_salvataggio = (
+        datetime.now().strftime("%H:%M:%S")
+        if os.path.exists(FILE_DATI)
+        else "Non ancora salvato"
+    )
 
 for proj_name, data in st.session_state.progetti.items():
     if "partecipanti" not in data:
@@ -532,6 +543,17 @@ else:
                 st.rerun()
 
         st.markdown("</div>", unsafe_allow_html=True)
+
+# Pulsante esplicito di salvataggio modifiche
+st.markdown("<br>", unsafe_allow_html=True)
+if st.button("💾 Salva Modifiche", type="primary", use_container_width=True):
+    salva_dati(st.session_state.progetti)
+    st.toast("✅ Modifiche salvate!", icon="💾")
+
+st.markdown(
+    f"<p style='text-align: center; color: #64748b; font-size: 0.78em; margin-top: 4px;'>Ultimo salvataggio: <b>{st.session_state.ultimo_salvataggio}</b></p>",
+    unsafe_allow_html=True,
+)
 
 # Ricalcolo finale aggiornato
 valore_totale_atteso = 0
