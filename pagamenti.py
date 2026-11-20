@@ -38,7 +38,8 @@ st.set_page_config(
 # Importi di riferimento (su quota base 260 €: acconto 100 € + saldo 160 €)
 IMPORTO_ACCONTO_BASE = 100
 IMPORTO_SALDO_BASE = 160
-PIN_ADMIN_DEFAULT = "1234"
+PIN_ADMIN_DEFAULT = "Uso2011"
+PIN_MODIFICA_DEFAULT = "Uso2011"
 
 # --- GESTIONE PERSISTENZA DATI (FILE JSON) ---
 FILE_DATI = "dati_pagamenti.json"
@@ -108,9 +109,9 @@ def struttura_default():
     return {
         "admin_pin": PIN_ADMIN_DEFAULT,
         "utenti": {
-            "Admin": "modifica",
-            "Dirigente": "modifica",
-            "Sola Lettura": "lettura",
+            "Admin": {"ruolo": "modifica", "pin": PIN_MODIFICA_DEFAULT},
+            "Dirigente": {"ruolo": "modifica", "pin": PIN_MODIFICA_DEFAULT},
+            "Sola Lettura": {"ruolo": "lettura", "pin": ""},
         },
         "progetti": {
             "Torneo Lignano Sabbiadoro (Under 16 - 2011)": {
@@ -123,22 +124,55 @@ def struttura_default():
     }
 
 
+def normalizza_utenti(utenti_grezzi):
+    default_utenti = struttura_default()["utenti"]
+    if not isinstance(utenti_grezzi, dict) or not utenti_grezzi:
+        return dict(default_utenti)
+
+    normalizzati = {}
+    for nome, info in utenti_grezzi.items():
+        if isinstance(info, dict):
+            ruolo = (
+                info.get("ruolo")
+                if info.get("ruolo") in ("modifica", "lettura")
+                else "lettura"
+            )
+            if ruolo == "modifica":
+                pin_raw = info.get("pin")
+                pin = (
+                    str(pin_raw).strip()
+                    if pin_raw is not None and str(pin_raw).strip() != ""
+                    else PIN_MODIFICA_DEFAULT
+                )
+            else:
+                pin = ""
+        else:
+            ruolo = info if info in ("modifica", "lettura") else "lettura"
+            pin = PIN_MODIFICA_DEFAULT if ruolo == "modifica" else ""
+
+        normalizzati[str(nome)] = {"ruolo": ruolo, "pin": pin}
+
+    return normalizzati or dict(default_utenti)
+
+
 def normalizza_stato_completo(grezzo):
     default = struttura_default()
     if not isinstance(grezzo, dict) or not grezzo:
         return default
 
-    # Retrocompatibilità se il JSON conteneva direttamente il dizionario dei progetti
     if "progetti" not in grezzo:
         progetti = grezzo
         admin_pin = PIN_ADMIN_DEFAULT
-        utenti = default["utenti"]
+        utenti = dict(default["utenti"])
     else:
         progetti = grezzo.get("progetti") or default["progetti"]
-        admin_pin = str(grezzo.get("admin_pin") or PIN_ADMIN_DEFAULT)
-        utenti = grezzo.get("utenti")
-        if not isinstance(utenti, dict) or not utenti:
-            utenti = dict(default["utenti"])
+        admin_pin_raw = grezzo.get("admin_pin")
+        admin_pin = (
+            str(admin_pin_raw).strip()
+            if admin_pin_raw is not None and str(admin_pin_raw).strip() != ""
+            else PIN_ADMIN_DEFAULT
+        )
+        utenti = normalizza_utenti(grezzo.get("utenti"))
 
     for proj in progetti.values():
         if "giocatori" in proj:
@@ -343,8 +377,12 @@ if "stato_app" not in st.session_state:
 stato_app = st.session_state.stato_app
 utenti_dict = stato_app["utenti"]
 
+if "autenticato" not in st.session_state:
+    st.session_state.autenticato = False
+
 if "utente_attivo" not in st.session_state or st.session_state.utente_attivo not in utenti_dict:
-    st.session_state.utente_attivo = next(iter(utenti_dict.keys()))
+    st.session_state.utente_attivo = None
+    st.session_state.autenticato = False
 
 if "admin_sbloccato" not in st.session_state:
     st.session_state.admin_sbloccato = False
@@ -365,40 +403,120 @@ st.markdown(
     "<p style='text-align: center; color: #64748b; margin-top: 2px; font-size: 0.9em;'>USO Nuvolento - Monitoraggio Quote</p>",
     unsafe_allow_html=True,
 )
+st.markdown("---")
 
-# --- BARRA UTENTE & PERMESSI ---
-lista_utenti = list(utenti_dict.keys())
-col_u_sel, col_u_badge = st.columns([2.2, 1.3])
-with col_u_sel:
-    utente_scelto = st.selectbox(
-        "Utente attivo",
-        lista_utenti,
-        index=lista_utenti.index(st.session_state.utente_attivo),
-        label_visibility="collapsed",
+# --- SCHERMATA DI ACCESSO (PRIMA DI ENTRARE NELL'APP) ---
+if not st.session_state.autenticato or not st.session_state.utente_attivo:
+    st.markdown("### 🔐 Accesso all'Applicazione")
+    st.markdown(
+        "<p style='color: #64748b; font-size: 0.85em;'>Seleziona l'utente. Il PIN è richiesto solo per gli utenti con accesso di <b>modifica</b> (PIN base: <b>Uso2011</b>).</p>",
+        unsafe_allow_html=True,
     )
-    if utente_scelto != st.session_state.utente_attivo:
-        st.session_state.utente_attivo = utente_scelto
-        st.rerun()
 
-ruolo_corrente = utenti_dict.get(st.session_state.utente_attivo, "lettura")
+    lista_utenti_login = list(utenti_dict.keys())
+    utente_login = st.selectbox(
+        "Seleziona utente",
+        options=lista_utenti_login,
+        key="login_utente_select",
+    )
+    info_login = utenti_dict.get(utente_login, {"ruolo": "lettura", "pin": ""})
+    ruolo_login = info_login.get("ruolo", "lettura")
+    richiede_pin = ruolo_login == "modifica"
+
+    pin_login = ""
+    if richiede_pin:
+        pin_login = st.text_input(
+            "PIN utente (modifica)",
+            type="password",
+            key="login_pin_input",
+            placeholder="Inserisci PIN (base: Uso2011)",
+        )
+    else:
+        st.info(
+            "Utente in **sola lettura**: nessun PIN richiesto per consultare i dati."
+        )
+
+    label_btn_login = (
+        "🔓 Accedi con PIN"
+        if richiede_pin
+        else "👁️ Entra in Sola Lettura"
+    )
+    if st.button(label_btn_login, type="primary", use_container_width=True):
+        if not richiede_pin:
+            st.session_state.utente_attivo = utente_login
+            st.session_state.autenticato = True
+            st.session_state.admin_sbloccato = False
+            st.rerun()
+        else:
+            pin_corretto = str(info_login.get("pin", PIN_MODIFICA_DEFAULT))
+            if pin_login == pin_corretto:
+                st.session_state.utente_attivo = utente_login
+                st.session_state.autenticato = True
+                st.session_state.admin_sbloccato = False
+                st.rerun()
+            else:
+                st.error("PIN errato per l'accesso in modifica.")
+
+    st.stop()
+
+# --- APP AUTENTICATA ---
+utente_corrente = st.session_state.utente_attivo
+info_corrente = utenti_dict.get(utente_corrente, {"ruolo": "lettura", "pin": ""})
+ruolo_corrente = info_corrente.get("ruolo", "lettura")
 puo_modificare = ruolo_corrente == "modifica"
 
+col_u_info, col_u_badge, col_u_logout = st.columns([1.8, 1.2, 1.0])
+with col_u_info:
+    st.markdown(
+        f"<div style='padding-top: 6px; font-weight: 600; font-size: 0.88rem;'>👤 {utente_corrente}</div>",
+        unsafe_allow_html=True,
+    )
 with col_u_badge:
     if puo_modificare:
         st.markdown(
-            "<div style='padding-top: 6px; text-align: right;'><span style='background-color: #d1fae5; color: #065f46; padding: 3px 8px; border-radius: 6px; font-size: 0.72em; font-weight: 700;'>✏️ MODIFICA</span></div>",
+            "<div style='padding-top: 6px; text-align: center;'><span style='background-color: #d1fae5; color: #065f46; padding: 3px 8px; border-radius: 6px; font-size: 0.7em; font-weight: 700;'>✏️ MODIFICA</span></div>",
             unsafe_allow_html=True,
         )
     else:
         st.markdown(
-            "<div style='padding-top: 6px; text-align: right;'><span style='background-color: #e2e8f0; color: #334155; padding: 3px 8px; border-radius: 6px; font-size: 0.72em; font-weight: 700;'>👁️ SOLA LETTURA</span></div>",
+            "<div style='padding-top: 6px; text-align: center;'><span style='background-color: #e2e8f0; color: #334155; padding: 3px 8px; border-radius: 6px; font-size: 0.7em; font-weight: 700;'>👁️ LETTURA</span></div>",
             unsafe_allow_html=True,
         )
+with col_u_logout:
+    if st.button("🚪 Esci", key="btn_logout", use_container_width=True):
+        st.session_state.autenticato = False
+        st.session_state.utente_attivo = None
+        st.session_state.admin_sbloccato = False
+        st.rerun()
 
 if not puo_modificare:
     st.info(
-        f"Stai visualizzando l'app come **{st.session_state.utente_attivo}** in modalità **sola lettura**. Le modifiche sono disabilitate."
+        f"Stai visualizzando l'app come **{utente_corrente}** in modalità **sola lettura**. Le modifiche sono disabilitate."
     )
+else:
+    with st.expander("🔑 Cambia il tuo PIN di accesso"):
+        pin_attuale_inp = st.text_input(
+            "PIN attuale", type="password", key="mio_pin_attuale"
+        )
+        pin_nuovo_inp = st.text_input(
+            "Nuovo PIN", type="password", key="mio_pin_nuovo"
+        )
+        pin_conferma_inp = st.text_input(
+            "Conferma nuovo PIN", type="password", key="mio_pin_conferma"
+        )
+        if st.button("Salva nuovo PIN", use_container_width=True):
+            pin_registrato = str(info_corrente.get("pin", PIN_MODIFICA_DEFAULT))
+            if pin_attuale_inp != pin_registrato:
+                st.error("Il PIN attuale non è corretto.")
+            elif not pin_nuovo_inp.strip():
+                st.warning("Inserisci un nuovo PIN non vuoto.")
+            elif pin_nuovo_inp != pin_conferma_inp:
+                st.warning("La conferma del nuovo PIN non coincide.")
+            else:
+                utenti_dict[utente_corrente]["pin"] = pin_nuovo_inp.strip()
+                salva_dati(stato_app)
+                st.success("PIN aggiornato correttamente!")
+                st.rerun()
 
 # --- PANNELLO AMMINISTRATORE (ACCESSO TRAMITE PIN) ---
 with st.expander("🔐 Pannello Amministratore (PIN)"):
@@ -407,7 +525,7 @@ with st.expander("🔐 Pannello Amministratore (PIN)"):
             "Inserisci PIN Amministratore",
             type="password",
             key="input_pin_admin",
-            placeholder="PIN (default: 1234)",
+            placeholder="PIN admin (base: Uso2011)",
         )
         if st.button("Sblocca Pannello Admin", use_container_width=True):
             if pin_inserito == stato_app.get("admin_pin", PIN_ADMIN_DEFAULT):
@@ -422,13 +540,16 @@ with st.expander("🔐 Pannello Amministratore (PIN)"):
             st.session_state.admin_sbloccato = False
             st.rerun()
 
-        st.markdown("#### 👥 Utenti e Permessi")
+        st.markdown("#### 👥 Utenti, PIN e Permessi")
         for u_nome in list(utenti_dict.keys()):
-            u_ruolo_att = utenti_dict[u_nome]
-            c_un, c_ur, c_ud = st.columns([2.2, 1.8, 0.7])
+            u_info = utenti_dict[u_nome]
+            u_ruolo_att = u_info.get("ruolo", "lettura")
+            u_pin_att = str(u_info.get("pin", ""))
+
+            c_un, c_ur, c_up, c_ud = st.columns([1.8, 1.4, 1.2, 0.6])
             with c_un:
                 st.markdown(
-                    f"<div style='padding-top: 6px; font-weight: 600; font-size: 0.85rem;'>{u_nome}</div>",
+                    f"<div style='padding-top: 6px; font-weight: 600; font-size: 0.82rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;'>{u_nome}</div>",
                     unsafe_allow_html=True,
                 )
             with c_ur:
@@ -440,17 +561,37 @@ with st.expander("🔐 Pannello Amministratore (PIN)"):
                     label_visibility="collapsed",
                 )
                 if nuovo_ruolo != u_ruolo_att:
-                    utenti_dict[u_nome] = nuovo_ruolo
+                    utenti_dict[u_nome]["ruolo"] = nuovo_ruolo
+                    if nuovo_ruolo == "modifica" and not utenti_dict[u_nome].get("pin"):
+                        utenti_dict[u_nome]["pin"] = PIN_MODIFICA_DEFAULT
+                    elif nuovo_ruolo == "lettura":
+                        utenti_dict[u_nome]["pin"] = ""
                     salva_dati(stato_app)
                     st.rerun()
+            with c_up:
+                if u_ruolo_att == "modifica":
+                    nuovo_pin_u = st.text_input(
+                        f"PIN {u_nome}",
+                        value=u_pin_att or PIN_MODIFICA_DEFAULT,
+                        key=f"pin_u_{u_nome}",
+                        label_visibility="collapsed",
+                    )
+                    if nuovo_pin_u.strip() and nuovo_pin_u.strip() != u_pin_att:
+                        utenti_dict[u_nome]["pin"] = nuovo_pin_u.strip()
+                        salva_dati(stato_app)
+                        st.rerun()
+                else:
+                    st.markdown(
+                        "<div style='padding-top: 6px; text-align: center; color: #64748b; font-size: 0.72rem;'>No PIN</div>",
+                        unsafe_allow_html=True,
+                    )
             with c_ud:
                 if len(utenti_dict) > 1:
                     if st.button("🗑️", key=f"del_user_{u_nome}", use_container_width=True):
                         del utenti_dict[u_nome]
                         if st.session_state.utente_attivo == u_nome:
-                            st.session_state.utente_attivo = next(
-                                iter(utenti_dict.keys())
-                            )
+                            st.session_state.autenticato = False
+                            st.session_state.utente_attivo = None
                         salva_dati(stato_app)
                         st.rerun()
                 else:
@@ -469,10 +610,24 @@ with st.expander("🔐 Pannello Amministratore (PIN)"):
             format_func=lambda r: "Modifica" if r == "modifica" else "Sola lettura",
             key="nuovo_utente_ruolo",
         )
+        nuovo_utente_pin = ""
+        if nuovo_utente_ruolo == "modifica":
+            nuovo_utente_pin = st.text_input(
+                "PIN iniziale (opzionale, default: Uso2011)",
+                key="nuovo_utente_pin",
+                placeholder=PIN_MODIFICA_DEFAULT,
+            )
         if st.button("Aggiungi Utente", use_container_width=True):
             nome_pulito = nuovo_utente_nome.strip()
+            if nuovo_utente_ruolo == "modifica":
+                pin_pulito = nuovo_utente_pin.strip() or PIN_MODIFICA_DEFAULT
+            else:
+                pin_pulito = ""
             if nome_pulito and nome_pulito not in utenti_dict:
-                utenti_dict[nome_pulito] = nuovo_utente_ruolo
+                utenti_dict[nome_pulito] = {
+                    "ruolo": nuovo_utente_ruolo,
+                    "pin": pin_pulito,
+                }
                 salva_dati(stato_app)
                 st.success(f"Utente '{nome_pulito}' aggiunto ({nuovo_utente_ruolo}).")
                 st.rerun()
@@ -481,13 +636,13 @@ with st.expander("🔐 Pannello Amministratore (PIN)"):
             else:
                 st.warning("Inserisci un nome utente valido.")
 
-        st.markdown("#### 🔑 Cambia PIN Amministratore")
-        nuovo_pin = st.text_input(
-            "Nuovo PIN", type="password", key="nuovo_pin_admin"
+        st.markdown("#### 🔑 Cambia PIN Pannello Amministratore")
+        nuovo_pin_admin = st.text_input(
+            "Nuovo PIN Admin", type="password", key="nuovo_pin_admin"
         )
-        if st.button("Aggiorna PIN", use_container_width=True):
-            if nuovo_pin.strip():
-                stato_app["admin_pin"] = nuovo_pin.strip()
+        if st.button("Aggiorna PIN Admin", use_container_width=True):
+            if nuovo_pin_admin.strip():
+                stato_app["admin_pin"] = nuovo_pin_admin.strip()
                 salva_dati(stato_app)
                 st.success("PIN amministratore aggiornato.")
             else:
