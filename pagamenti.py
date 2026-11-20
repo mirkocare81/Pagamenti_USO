@@ -124,33 +124,42 @@ def struttura_default():
     }
 
 
+def estrai_utente_sicuro(utenti_dict, nome_utente):
+    """Restituisce sempre un dizionario {'ruolo': ..., 'pin': ...} valido."""
+    raw = utenti_dict.get(nome_utente) if isinstance(utenti_dict, dict) else None
+    if isinstance(raw, dict):
+        ruolo = raw.get("ruolo")
+        if ruolo not in ("modifica", "lettura"):
+            ruolo = "lettura"
+        if ruolo == "modifica":
+            pin_raw = raw.get("pin")
+            pin = (
+                str(pin_raw).strip()
+                if pin_raw is not None and str(pin_raw).strip() != ""
+                else PIN_MODIFICA_DEFAULT
+            )
+        else:
+            pin = ""
+        return {"ruolo": ruolo, "pin": pin}
+    elif isinstance(raw, str) and raw in ("modifica", "lettura"):
+        return {
+            "ruolo": raw,
+            "pin": PIN_MODIFICA_DEFAULT if raw == "modifica" else "",
+        }
+    return {"ruolo": "lettura", "pin": ""}
+
+
 def normalizza_utenti(utenti_grezzi):
     default_utenti = struttura_default()["utenti"]
     if not isinstance(utenti_grezzi, dict) or not utenti_grezzi:
         return dict(default_utenti)
 
     normalizzati = {}
-    for nome, info in utenti_grezzi.items():
-        if isinstance(info, dict):
-            ruolo = (
-                info.get("ruolo")
-                if info.get("ruolo") in ("modifica", "lettura")
-                else "lettura"
-            )
-            if ruolo == "modifica":
-                pin_raw = info.get("pin")
-                pin = (
-                    str(pin_raw).strip()
-                    if pin_raw is not None and str(pin_raw).strip() != ""
-                    else PIN_MODIFICA_DEFAULT
-                )
-            else:
-                pin = ""
-        else:
-            ruolo = info if info in ("modifica", "lettura") else "lettura"
-            pin = PIN_MODIFICA_DEFAULT if ruolo == "modifica" else ""
-
-        normalizzati[str(nome)] = {"ruolo": ruolo, "pin": pin}
+    for nome in utenti_grezzi.keys():
+        if nome is None or str(nome).strip() == "":
+            continue
+        chiave = str(nome).strip()
+        normalizzati[chiave] = estrai_utente_sicuro(utenti_grezzi, nome)
 
     return normalizzati or dict(default_utenti)
 
@@ -175,11 +184,11 @@ def normalizza_stato_completo(grezzo):
         utenti = normalizza_utenti(grezzo.get("utenti"))
 
     for proj in progetti.values():
-        if "giocatori" in proj:
+        if isinstance(proj, dict) and "giocatori" in proj:
             proj["giocatori"] = ordina_per_cognome(proj["giocatori"])
-            if "partecipanti" not in proj:
+            if "partecipanti" not in proj or not isinstance(proj["partecipanti"], dict):
                 proj["partecipanti"] = {g: 1 for g in proj["giocatori"]}
-            if "pagamenti" not in proj:
+            if "pagamenti" not in proj or not isinstance(proj["pagamenti"], dict):
                 proj["pagamenti"] = {}
             for g in proj["giocatori"]:
                 if g not in proj["pagamenti"]:
@@ -373,6 +382,8 @@ st.markdown(
 # Inizializzazione dello stato caricando dal file JSON
 if "stato_app" not in st.session_state:
     st.session_state.stato_app = carica_dati()
+else:
+    st.session_state.stato_app = normalizza_stato_completo(st.session_state.stato_app)
 
 stato_app = st.session_state.stato_app
 utenti_dict = stato_app["utenti"]
@@ -419,8 +430,8 @@ if not st.session_state.autenticato or not st.session_state.utente_attivo:
         options=lista_utenti_login,
         key="login_utente_select",
     )
-    info_login = utenti_dict.get(utente_login, {"ruolo": "lettura", "pin": ""})
-    ruolo_login = info_login.get("ruolo", "lettura")
+    info_login = estrai_utente_sicuro(utenti_dict, utente_login)
+    ruolo_login = info_login["ruolo"]
     richiede_pin = ruolo_login == "modifica"
 
     pin_login = ""
@@ -448,7 +459,7 @@ if not st.session_state.autenticato or not st.session_state.utente_attivo:
             st.session_state.admin_sbloccato = False
             st.rerun()
         else:
-            pin_corretto = str(info_login.get("pin", PIN_MODIFICA_DEFAULT))
+            pin_corretto = info_login["pin"]
             if pin_login == pin_corretto:
                 st.session_state.utente_attivo = utente_login
                 st.session_state.autenticato = True
@@ -461,8 +472,8 @@ if not st.session_state.autenticato or not st.session_state.utente_attivo:
 
 # --- APP AUTENTICATA ---
 utente_corrente = st.session_state.utente_attivo
-info_corrente = utenti_dict.get(utente_corrente, {"ruolo": "lettura", "pin": ""})
-ruolo_corrente = info_corrente.get("ruolo", "lettura")
+info_corrente = estrai_utente_sicuro(utenti_dict, utente_corrente)
+ruolo_corrente = info_corrente["ruolo"]
 puo_modificare = ruolo_corrente == "modifica"
 
 col_u_info, col_u_badge, col_u_logout = st.columns([1.8, 1.2, 1.0])
@@ -505,7 +516,7 @@ else:
             "Conferma nuovo PIN", type="password", key="mio_pin_conferma"
         )
         if st.button("Salva nuovo PIN", use_container_width=True):
-            pin_registrato = str(info_corrente.get("pin", PIN_MODIFICA_DEFAULT))
+            pin_registrato = info_corrente["pin"]
             if pin_attuale_inp != pin_registrato:
                 st.error("Il PIN attuale non è corretto.")
             elif not pin_nuovo_inp.strip():
@@ -513,7 +524,10 @@ else:
             elif pin_nuovo_inp != pin_conferma_inp:
                 st.warning("La conferma del nuovo PIN non coincide.")
             else:
-                utenti_dict[utente_corrente]["pin"] = pin_nuovo_inp.strip()
+                utenti_dict[utente_corrente] = {
+                    "ruolo": "modifica",
+                    "pin": pin_nuovo_inp.strip(),
+                }
                 salva_dati(stato_app)
                 st.success("PIN aggiornato correttamente!")
                 st.rerun()
@@ -542,9 +556,9 @@ with st.expander("🔐 Pannello Amministratore (PIN)"):
 
         st.markdown("#### 👥 Utenti, PIN e Permessi")
         for u_nome in list(utenti_dict.keys()):
-            u_info = utenti_dict[u_nome]
-            u_ruolo_att = u_info.get("ruolo", "lettura")
-            u_pin_att = str(u_info.get("pin", ""))
+            u_info = estrai_utente_sicuro(utenti_dict, u_nome)
+            u_ruolo_att = u_info["ruolo"]
+            u_pin_att = u_info["pin"]
 
             c_un, c_ur, c_up, c_ud = st.columns([1.8, 1.4, 1.2, 0.6])
             with c_un:
@@ -561,11 +575,10 @@ with st.expander("🔐 Pannello Amministratore (PIN)"):
                     label_visibility="collapsed",
                 )
                 if nuovo_ruolo != u_ruolo_att:
-                    utenti_dict[u_nome]["ruolo"] = nuovo_ruolo
-                    if nuovo_ruolo == "modifica" and not utenti_dict[u_nome].get("pin"):
-                        utenti_dict[u_nome]["pin"] = PIN_MODIFICA_DEFAULT
-                    elif nuovo_ruolo == "lettura":
-                        utenti_dict[u_nome]["pin"] = ""
+                    utenti_dict[u_nome] = {
+                        "ruolo": nuovo_ruolo,
+                        "pin": PIN_MODIFICA_DEFAULT if nuovo_ruolo == "modifica" else "",
+                    }
                     salva_dati(stato_app)
                     st.rerun()
             with c_up:
@@ -577,7 +590,10 @@ with st.expander("🔐 Pannello Amministratore (PIN)"):
                         label_visibility="collapsed",
                     )
                     if nuovo_pin_u.strip() and nuovo_pin_u.strip() != u_pin_att:
-                        utenti_dict[u_nome]["pin"] = nuovo_pin_u.strip()
+                        utenti_dict[u_nome] = {
+                            "ruolo": "modifica",
+                            "pin": nuovo_pin_u.strip(),
+                        }
                         salva_dati(stato_app)
                         st.rerun()
                 else:
