@@ -420,7 +420,7 @@ st.markdown("---")
 if not st.session_state.autenticato or not st.session_state.utente_attivo:
     st.markdown("### 🔐 Accesso all'Applicazione")
     st.markdown(
-        "<p style='color: #64748b; font-size: 0.85em;'>Seleziona l'utente. Il PIN è richiesto solo per gli utenti con accesso di <b>modifica</b> (PIN base: <b>Uso2011</b>).</p>",
+        "<p style='color: #64748b; font-size: 0.85em;'>Seleziona l'utente. Il PIN è richiesto per gli utenti con accesso di <b>modifica</b>.</p>",
         unsafe_allow_html=True,
     )
 
@@ -437,10 +437,10 @@ if not st.session_state.autenticato or not st.session_state.utente_attivo:
     pin_login = ""
     if richiede_pin:
         pin_login = st.text_input(
-            "PIN utente (modifica)",
+            "PIN",
             type="password",
             key="login_pin_input",
-            placeholder="Inserisci PIN (base: Uso2011)",
+            placeholder="Inserisci PIN",
         )
     else:
         st.info(
@@ -539,7 +539,7 @@ with st.expander("🔐 Pannello Amministratore (PIN)"):
             "Inserisci PIN Amministratore",
             type="password",
             key="input_pin_admin",
-            placeholder="PIN admin (base: Uso2011)",
+            placeholder="Inserisci PIN",
         )
         if st.button("Sblocca Pannello Admin", use_container_width=True):
             if pin_inserito == stato_app.get("admin_pin", PIN_ADMIN_DEFAULT):
@@ -629,9 +629,9 @@ with st.expander("🔐 Pannello Amministratore (PIN)"):
         nuovo_utente_pin = ""
         if nuovo_utente_ruolo == "modifica":
             nuovo_utente_pin = st.text_input(
-                "PIN iniziale (opzionale, default: Uso2011)",
+                "PIN iniziale",
                 key="nuovo_utente_pin",
-                placeholder=PIN_MODIFICA_DEFAULT,
+                placeholder="Inserisci PIN",
             )
         if st.button("Aggiungi Utente", use_container_width=True):
             nome_pulito = nuovo_utente_nome.strip()
