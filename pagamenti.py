@@ -38,6 +38,7 @@ st.set_page_config(
 # Importi di riferimento (su quota base 260 €: acconto 100 € + saldo 160 €)
 IMPORTO_ACCONTO_BASE = 100
 IMPORTO_SALDO_BASE = 160
+PIN_ADMIN_DEFAULT = "1234"
 
 # --- GESTIONE PERSISTENZA DATI (FILE JSON) ---
 FILE_DATI = "dati_pagamenti.json"
@@ -84,27 +85,7 @@ def calcola_quota_giocatore(stato_record, quota_unitaria, num_persone):
     return importo_incassato, stato, has_acconto, has_pagato
 
 
-def carica_dati():
-    if os.path.exists(FILE_DATI):
-        try:
-            with open(FILE_DATI, "r", encoding="utf-8") as f:
-                dati = json.load(f)
-                if isinstance(dati, dict) and dati:
-                    for proj in dati.values():
-                        if "giocatori" in proj:
-                            proj["giocatori"] = ordina_per_cognome(
-                                proj["giocatori"]
-                            )
-                            if "partecipanti" not in proj:
-                                proj["partecipanti"] = {
-                                    g: 1 for g in proj["giocatori"]
-                                }
-                            if "pagamenti" not in proj:
-                                proj["pagamenti"] = {}
-                    return dati
-        except Exception:
-            pass
-
+def struttura_default():
     giocatori_iniziali = [
         "Rossi Mario",
         "Bianchi Luca",
@@ -125,18 +106,80 @@ def carica_dati():
     }
 
     return {
-        "Torneo Lignano Sabbiadoro (Under 16 - 2011)": {
-            "quota": 260,
-            "giocatori": giocatori_ordinati,
-            "pagamenti": pagamenti_iniziali,
-            "partecipanti": partecipanti_iniziali,
-        }
+        "admin_pin": PIN_ADMIN_DEFAULT,
+        "utenti": {
+            "Admin": "modifica",
+            "Dirigente": "modifica",
+            "Sola Lettura": "lettura",
+        },
+        "progetti": {
+            "Torneo Lignano Sabbiadoro (Under 16 - 2011)": {
+                "quota": 260,
+                "giocatori": giocatori_ordinati,
+                "pagamenti": pagamenti_iniziali,
+                "partecipanti": partecipanti_iniziali,
+            }
+        },
     }
 
 
-def salva_dati(progetti):
+def normalizza_stato_completo(grezzo):
+    default = struttura_default()
+    if not isinstance(grezzo, dict) or not grezzo:
+        return default
+
+    # Retrocompatibilità se il JSON conteneva direttamente il dizionario dei progetti
+    if "progetti" not in grezzo:
+        progetti = grezzo
+        admin_pin = PIN_ADMIN_DEFAULT
+        utenti = default["utenti"]
+    else:
+        progetti = grezzo.get("progetti") or default["progetti"]
+        admin_pin = str(grezzo.get("admin_pin") or PIN_ADMIN_DEFAULT)
+        utenti = grezzo.get("utenti")
+        if not isinstance(utenti, dict) or not utenti:
+            utenti = dict(default["utenti"])
+
+    for proj in progetti.values():
+        if "giocatori" in proj:
+            proj["giocatori"] = ordina_per_cognome(proj["giocatori"])
+            if "partecipanti" not in proj:
+                proj["partecipanti"] = {g: 1 for g in proj["giocatori"]}
+            if "pagamenti" not in proj:
+                proj["pagamenti"] = {}
+            for g in proj["giocatori"]:
+                if g not in proj["pagamenti"]:
+                    proj["pagamenti"][g] = {"acconto": False, "pagato": False}
+                elif not isinstance(proj["pagamenti"][g], dict):
+                    vecchio_bool = bool(proj["pagamenti"][g])
+                    proj["pagamenti"][g] = {
+                        "acconto": False,
+                        "pagato": vecchio_bool,
+                    }
+                if g not in proj["partecipanti"]:
+                    proj["partecipanti"][g] = 1
+
+    return {
+        "admin_pin": admin_pin,
+        "utenti": utenti,
+        "progetti": progetti,
+    }
+
+
+def carica_dati():
+    if os.path.exists(FILE_DATI):
+        try:
+            with open(FILE_DATI, "r", encoding="utf-8") as f:
+                grezzo = json.load(f)
+                return normalizza_stato_completo(grezzo)
+        except Exception:
+            pass
+    return struttura_default()
+
+
+def salva_dati(stato_app):
     with open(FILE_DATI, "w", encoding="utf-8") as f:
-        json.dump(progetti, f, ensure_ascii=False, indent=4)
+        json.dump(stato_app, f, ensure_ascii=False, indent=4)
     st.session_state.ultimo_salvataggio = datetime.now().strftime("%H:%M:%S")
 
 
@@ -294,8 +337,17 @@ st.markdown(
 )
 
 # Inizializzazione dello stato caricando dal file JSON
-if "progetti" not in st.session_state:
-    st.session_state.progetti = carica_dati()
+if "stato_app" not in st.session_state:
+    st.session_state.stato_app = carica_dati()
+
+stato_app = st.session_state.stato_app
+utenti_dict = stato_app["utenti"]
+
+if "utente_attivo" not in st.session_state or st.session_state.utente_attivo not in utenti_dict:
+    st.session_state.utente_attivo = next(iter(utenti_dict.keys()))
+
+if "admin_sbloccato" not in st.session_state:
+    st.session_state.admin_sbloccato = False
 
 if "ultimo_salvataggio" not in st.session_state:
     st.session_state.ultimo_salvataggio = (
@@ -303,23 +355,6 @@ if "ultimo_salvataggio" not in st.session_state:
         if os.path.exists(FILE_DATI)
         else "Non ancora salvato"
     )
-
-for proj_name, data in st.session_state.progetti.items():
-    if "partecipanti" not in data:
-        data["partecipanti"] = {}
-    if "pagamenti" not in data:
-        data["pagamenti"] = {}
-    for g in data["giocatori"]:
-        if g not in data["pagamenti"]:
-            data["pagamenti"][g] = {"acconto": False, "pagato": False}
-        elif not isinstance(data["pagamenti"][g], dict):
-            vecchio_bool = bool(data["pagamenti"][g])
-            data["pagamenti"][g] = {
-                "acconto": False,
-                "pagato": vecchio_bool,
-            }
-        if g not in data["partecipanti"]:
-            data["partecipanti"][g] = 1
 
 # Intestazione App
 st.markdown(
@@ -330,38 +365,167 @@ st.markdown(
     "<p style='text-align: center; color: #64748b; margin-top: 2px; font-size: 0.9em;'>USO Nuvolento - Monitoraggio Quote</p>",
     unsafe_allow_html=True,
 )
+
+# --- BARRA UTENTE & PERMESSI ---
+lista_utenti = list(utenti_dict.keys())
+col_u_sel, col_u_badge = st.columns([2.2, 1.3])
+with col_u_sel:
+    utente_scelto = st.selectbox(
+        "Utente attivo",
+        lista_utenti,
+        index=lista_utenti.index(st.session_state.utente_attivo),
+        label_visibility="collapsed",
+    )
+    if utente_scelto != st.session_state.utente_attivo:
+        st.session_state.utente_attivo = utente_scelto
+        st.rerun()
+
+ruolo_corrente = utenti_dict.get(st.session_state.utente_attivo, "lettura")
+puo_modificare = ruolo_corrente == "modifica"
+
+with col_u_badge:
+    if puo_modificare:
+        st.markdown(
+            "<div style='padding-top: 6px; text-align: right;'><span style='background-color: #d1fae5; color: #065f46; padding: 3px 8px; border-radius: 6px; font-size: 0.72em; font-weight: 700;'>✏️ MODIFICA</span></div>",
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown(
+            "<div style='padding-top: 6px; text-align: right;'><span style='background-color: #e2e8f0; color: #334155; padding: 3px 8px; border-radius: 6px; font-size: 0.72em; font-weight: 700;'>👁️ SOLA LETTURA</span></div>",
+            unsafe_allow_html=True,
+        )
+
+if not puo_modificare:
+    st.info(
+        f"Stai visualizzando l'app come **{st.session_state.utente_attivo}** in modalità **sola lettura**. Le modifiche sono disabilitate."
+    )
+
+# --- PANNELLO AMMINISTRATORE (ACCESSO TRAMITE PIN) ---
+with st.expander("🔐 Pannello Amministratore (PIN)"):
+    if not st.session_state.admin_sbloccato:
+        pin_inserito = st.text_input(
+            "Inserisci PIN Amministratore",
+            type="password",
+            key="input_pin_admin",
+            placeholder="PIN (default: 1234)",
+        )
+        if st.button("Sblocca Pannello Admin", use_container_width=True):
+            if pin_inserito == stato_app.get("admin_pin", PIN_ADMIN_DEFAULT):
+                st.session_state.admin_sbloccato = True
+                st.success("Pannello amministratore sbloccato.")
+                st.rerun()
+            else:
+                st.error("PIN errato.")
+    else:
+        st.success("Accesso amministratore attivo.")
+        if st.button("🔒 Blocca Pannello Admin", use_container_width=True):
+            st.session_state.admin_sbloccato = False
+            st.rerun()
+
+        st.markdown("#### 👥 Utenti e Permessi")
+        for u_nome in list(utenti_dict.keys()):
+            u_ruolo_att = utenti_dict[u_nome]
+            c_un, c_ur, c_ud = st.columns([2.2, 1.8, 0.7])
+            with c_un:
+                st.markdown(
+                    f"<div style='padding-top: 6px; font-weight: 600; font-size: 0.85rem;'>{u_nome}</div>",
+                    unsafe_allow_html=True,
+                )
+            with c_ur:
+                nuovo_ruolo = st.selectbox(
+                    f"Ruolo {u_nome}",
+                    options=["modifica", "lettura"],
+                    index=0 if u_ruolo_att == "modifica" else 1,
+                    key=f"ruolo_{u_nome}",
+                    label_visibility="collapsed",
+                )
+                if nuovo_ruolo != u_ruolo_att:
+                    utenti_dict[u_nome] = nuovo_ruolo
+                    salva_dati(stato_app)
+                    st.rerun()
+            with c_ud:
+                if len(utenti_dict) > 1:
+                    if st.button("🗑️", key=f"del_user_{u_nome}", use_container_width=True):
+                        del utenti_dict[u_nome]
+                        if st.session_state.utente_attivo == u_nome:
+                            st.session_state.utente_attivo = next(
+                                iter(utenti_dict.keys())
+                            )
+                        salva_dati(stato_app)
+                        st.rerun()
+                else:
+                    st.markdown(
+                        "<div style='padding-top: 6px; text-align: center; color: #94a3b8; font-size: 0.75rem;'>—</div>",
+                        unsafe_allow_html=True,
+                    )
+
+        st.markdown("#### ➕ Aggiungi Nuovo Utente")
+        nuovo_utente_nome = st.text_input(
+            "Nome utente", key="nuovo_utente_nome", placeholder="Es. Mister Fabio"
+        )
+        nuovo_utente_ruolo = st.selectbox(
+            "Livello accesso",
+            options=["modifica", "lettura"],
+            format_func=lambda r: "Modifica" if r == "modifica" else "Sola lettura",
+            key="nuovo_utente_ruolo",
+        )
+        if st.button("Aggiungi Utente", use_container_width=True):
+            nome_pulito = nuovo_utente_nome.strip()
+            if nome_pulito and nome_pulito not in utenti_dict:
+                utenti_dict[nome_pulito] = nuovo_utente_ruolo
+                salva_dati(stato_app)
+                st.success(f"Utente '{nome_pulito}' aggiunto ({nuovo_utente_ruolo}).")
+                st.rerun()
+            elif nome_pulito in utenti_dict:
+                st.warning("Esiste già un utente con questo nome.")
+            else:
+                st.warning("Inserisci un nome utente valido.")
+
+        st.markdown("#### 🔑 Cambia PIN Amministratore")
+        nuovo_pin = st.text_input(
+            "Nuovo PIN", type="password", key="nuovo_pin_admin"
+        )
+        if st.button("Aggiorna PIN", use_container_width=True):
+            if nuovo_pin.strip():
+                stato_app["admin_pin"] = nuovo_pin.strip()
+                salva_dati(stato_app)
+                st.success("PIN amministratore aggiornato.")
+            else:
+                st.warning("Inserisci un PIN non vuoto.")
+
 st.markdown("---")
 
 # --- SEZIONE 1: Gestione Progetti e Selezione ---
 st.markdown("### 📁 Progetto Attivo")
 
+progetti = stato_app["progetti"]
 col_sel, col_add = st.columns([2, 1])
 
 with col_sel:
-    lista_progetti = list(st.session_state.progetti.keys())
+    lista_progetti = list(progetti.keys())
     progetto_selezionato = st.selectbox(
         "Progetto attivo", lista_progetti, label_visibility="collapsed"
     )
 
 with col_add:
-    with st.popover("➕ Nuovo", use_container_width=True):
+    with st.popover("➕ Nuovo", use_container_width=True, disabled=not puo_modificare):
         nuovo_nome = st.text_input("Nome Progetto")
         nuova_quota = st.number_input(
             "Quota (€)", min_value=0, value=260, step=10
         )
-        if st.button("Crea", use_container_width=True):
-            if nuovo_nome and nuovo_nome not in st.session_state.progetti:
-                st.session_state.progetti[nuovo_nome] = {
+        if st.button("Crea", use_container_width=True, disabled=not puo_modificare):
+            if nuovo_nome and nuovo_nome not in progetti:
+                progetti[nuovo_nome] = {
                     "quota": nuova_quota,
                     "giocatori": [],
                     "pagamenti": {},
                     "partecipanti": {},
                 }
-                salva_dati(st.session_state.progetti)
+                salva_dati(stato_app)
                 st.success(f"'{nuovo_nome}' creato!")
                 st.rerun()
 
-dati_attivi = st.session_state.progetti[progetto_selezionato]
+dati_attivi = progetti[progetto_selezionato]
 quota_unitaria = dati_attivi["quota"]
 giocatori = dati_attivi["giocatori"]
 pagamenti_dict = dati_attivi["pagamenti"]
@@ -419,8 +583,10 @@ st.progress(
 
 # --- SEZIONE 2: Aggiunta rapida di un giocatore al progetto ---
 with st.expander("➕ Aggiungi Giocatore"):
-    nuovo_giocatore = st.text_input("Nome e Cognome (es. Mario Rossi)")
-    if st.button("Aggiungi alla Lista", use_container_width=True):
+    nuovo_giocatore = st.text_input(
+        "Nome e Cognome (es. Mario Rossi)", disabled=not puo_modificare
+    )
+    if st.button("Aggiungi alla Lista", use_container_width=True, disabled=not puo_modificare):
         if nuovo_giocatore and nuovo_giocatore not in giocatori:
             dati_attivi["giocatori"].append(nuovo_giocatore)
             dati_attivi["giocatori"] = ordina_per_cognome(dati_attivi["giocatori"])
@@ -429,7 +595,7 @@ with st.expander("➕ Aggiungi Giocatore"):
                 "pagato": False,
             }
             dati_attivi["partecipanti"][nuovo_giocatore] = 1
-            salva_dati(st.session_state.progetti)
+            salva_dati(stato_app)
             st.success(f"Aggiunto: {nuovo_giocatore}")
             st.rerun()
 
@@ -471,14 +637,15 @@ else:
                 f"Acc. {val_acconto_u}€",
                 value=has_acc,
                 key=f"acc_{giocatore}",
+                disabled=not puo_modificare,
                 help=f"Acconto {val_acconto_u} € a persona",
             )
-            if nuovo_acc != has_acc:
+            if puo_modificare and nuovo_acc != has_acc:
                 pagamenti_dict[giocatore] = {
                     "acconto": nuovo_acc,
                     "pagato": has_pag,
                 }
-                salva_dati(st.session_state.progetti)
+                salva_dati(stato_app)
                 st.rerun()
 
         with c_pag:
@@ -486,14 +653,15 @@ else:
                 f"Pag. {val_saldo_u}€",
                 value=has_pag,
                 key=f"pag_{giocatore}",
+                disabled=not puo_modificare,
                 help=f"Quota/Saldo {val_saldo_u} € a persona",
             )
-            if nuovo_pag != has_pag:
+            if puo_modificare and nuovo_pag != has_pag:
                 pagamenti_dict[giocatore] = {
                     "acconto": has_acc,
                     "pagato": nuovo_pag,
                 }
-                salva_dati(st.session_state.progetti)
+                salva_dati(stato_app)
                 st.rerun()
 
         with c_num:
@@ -503,11 +671,12 @@ else:
                 value=num_part_corrente,
                 step=1,
                 key=f"num_{giocatore}",
+                disabled=not puo_modificare,
                 label_visibility="collapsed",
             )
-            if nuovo_num != num_part_corrente:
+            if puo_modificare and nuovo_num != num_part_corrente:
                 partecipanti_dict[giocatore] = nuovo_num
-                salva_dati(st.session_state.progetti)
+                salva_dati(stato_app)
                 st.rerun()
 
         with c_badge:
@@ -532,6 +701,7 @@ else:
                 "🗑️",
                 key=f"del_{giocatore}",
                 use_container_width=True,
+                disabled=not puo_modificare,
                 help=f"Rimuovi {giocatore}",
             ):
                 dati_attivi["giocatori"].remove(giocatore)
@@ -539,15 +709,20 @@ else:
                     del dati_attivi["pagamenti"][giocatore]
                 if giocatore in dati_attivi["partecipanti"]:
                     del dati_attivi["partecipanti"][giocatore]
-                salva_dati(st.session_state.progetti)
+                salva_dati(stato_app)
                 st.rerun()
 
         st.markdown("</div>", unsafe_allow_html=True)
 
 # Pulsante esplicito di salvataggio modifiche
 st.markdown("<br>", unsafe_allow_html=True)
-if st.button("💾 Salva Modifiche", type="primary", use_container_width=True):
-    salva_dati(st.session_state.progetti)
+if st.button(
+    "💾 Salva Modifiche",
+    type="primary",
+    use_container_width=True,
+    disabled=not puo_modificare,
+):
+    salva_dati(stato_app)
     st.toast("✅ Modifiche salvate!", icon="💾")
 
 st.markdown(
