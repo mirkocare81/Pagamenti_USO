@@ -226,6 +226,10 @@ def salva_dati(stato_app):
     st.session_state.ultimo_salvataggio = datetime.now().strftime("%H:%M:%S")
 
 
+def serializza_json(stato_app):
+    return json.dumps(stato_app, ensure_ascii=False, indent=4).encode("utf-8")
+
+
 # --- FUNZIONE PER ESPORTARE IN CSV ---
 def genera_csv(progetto_nome, dati_progetto):
     giocatori = dati_progetto["giocatori"]
@@ -923,7 +927,7 @@ for g in giocatori:
     elif stato_g == "ACCONTO":
         giocatori_acconto += 1
 
-# --- SEZIONE 4: Riepilogo Finanziario ed Esportazione CSV ---
+# --- SEZIONE 4: Riepilogo Finanziario, Esportazione CSV e Backup JSON ---
 st.markdown("<br>", unsafe_allow_html=True)
 st.markdown("### 📊 Riepilogo Finanziario")
 
@@ -952,6 +956,44 @@ st.download_button(
     mime="text/csv",
     use_container_width=True,
 )
+
+with st.expander("💾 Backup e Ripristino Dati (JSON)"):
+    st.markdown(
+        "<p style='color: #64748b; font-size: 0.85em;'>Scarica il file JSON per trasferire i dati su un altro dispositivo o caricalo per ripristinare uno stato precedente.</p>",
+        unsafe_allow_html=True,
+    )
+
+    json_bytes = serializza_json(stato_app)
+    st.download_button(
+        label="📥 Scarica Backup JSON (.json)",
+        data=json_bytes,
+        file_name=FILE_DATI,
+        mime="application/json",
+        use_container_width=True,
+    )
+
+    file_caricato = st.file_uploader(
+        "Carica file di backup (.json)",
+        type=["json"],
+        key="uploader_backup_json",
+        disabled=not puo_modificare,
+    )
+
+    if file_caricato is not None and puo_modificare:
+        if st.button("📤 Ripristina Dati da JSON", use_container_width=True):
+            try:
+                contenuto_testo = file_caricato.getvalue().decode("utf-8")
+                dati_importati = json.loads(contenuto_testo)
+                nuovo_stato = normalizza_stato_completo(dati_importati)
+                st.session_state.stato_app = nuovo_stato
+                if st.session_state.utente_attivo not in nuovo_stato["utenti"]:
+                    st.session_state.autenticato = False
+                    st.session_state.utente_attivo = None
+                salva_dati(nuovo_stato)
+                st.success("Backup JSON importato e salvato correttamente!")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Impossibile importare il file JSON: {e}")
 
 # --- SEZIONE 5: Generatore Messaggio WhatsApp per Promemoria ---
 st.markdown("<br>", unsafe_allow_html=True)
