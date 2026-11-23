@@ -1,65 +1,136 @@
 {
-    "Torneo Lignano Sabbiadoro (Under 16 - 2011)": {
-        "quota": 260,
-        "giocatori": [
-            "Mirko Bardelloni",
-            "Andrea Bashmili",
-            "Matteo Bignotti",
-            "Gabriele Buttarelli",
-            "Lorenzo Carè",
-            "Antonio Cavuoto",
-            "Edoardo Cominelli",
-            "Samuele Cullè",
-            "Michele Felice",
-            "Alessandro Grande",
-            "Ethan Greci",
-            "Omar Gueye",
-            "Matteo Lauro",
-            "Christian Manzoni",
-            "Mario Montanari",
-            "Nicolò Scuri",
-            "Pietro Sguaizer",
-            "Daniele Tonni"
-        ],
-        "pagamenti": {
-            "Lorenzo Carè": false,
-            "Samuele Cullè": false,
-            "Edoardo Cominelli": false,
-            "Mario Montanari": false,
-            "Omar Gueye": false,
-            "Pietro Sguaizer": false,
-            "Daniele Tonni": false,
-            "Ethan Greci": false,
-            "Mirko Bardelloni": false,
-            "Antonio Cavuoto": false,
-            "Michele Felice": false,
-            "Matteo Bignotti": false,
-            "Nicolò Scuri": false,
-            "Alessandro Grande": false,
-            "Matteo Lauro": false,
-            "Christian Manzoni": false,
-            "Gabriele Buttarelli": false,
-            "Andrea Bashmili": false
+    "admin_pin": "Uso2011",
+    "utenti": {
+        "Admin": {
+            "ruolo": "modifica",
+            "pin": "Uso2011"
         },
-        "partecipanti": {
-            "Mirko Bardelloni": 1,
-            "Andrea Bashmili": 1,
-            "Matteo Bignotti": 1,
-            "Gabriele Buttarelli": 4,
-            "Lorenzo Carè": 4,
-            "Antonio Cavuoto": 1,
-            "Edoardo Cominelli": 1,
-            "Samuele Cullè": 1,
-            "Michele Felice": 4,
-            "Alessandro Grande": 1,
-            "Ethan Greci": 1,
-            "Omar Gueye": 1,
-            "Matteo Lauro": 3,
-            "Christian Manzoni": 1,
-            "Mario Montanari": 1,
-            "Nicolò Scuri": 1,
-            "Pietro Sguaizer": 1,
-            "Daniele Tonni": 1
+        "Dirigente": {
+            "ruolo": "modifica",
+            "pin": "Uso2011"
+        },
+        "Sola Lettura": {
+            "ruolo": "lettura",
+            "pin": ""
+        }
+    },
+    "progetti": {
+        "Torneo Lignano Sabbiadoro (Under 16 - 2011)": {
+            "quota": 260,
+            "giocatori": [
+                "Mirko Bardelloni",
+                "Andrea Bashmili",
+                "Matteo Bignotti",
+                "Gabriele Buttarelli",
+                "Lorenzo Carè",
+                "Antonio Cavuoto",
+                "Edoardo Cominelli",
+                "Samuele Cullè",
+                "Michele Felice",
+                "Alessandro Grande",
+                "Ethan Greci",
+                "Omar Gueye",
+                "Matteo Lauro",
+                "Christian Manzoni",
+                "Mario Montanari",
+                "Nicolò Scuri",
+                "Pietro Sguaizer",
+                "Daniele Tonni"
+            ],
+            "pagamenti": {
+                "Lorenzo Carè": {
+                    "acconto": false,
+                    "pagato": false
+                },
+                "Samuele Cullè": {
+                    "acconto": false,
+                    "pagato": false
+                },
+                "Edoardo Cominelli": {
+                    "acconto": false,
+                    "pagato": false
+                },
+                "Mario Montanari": {
+                    "acconto": false,
+                    "pagato": false
+                },
+                "Omar Gueye": {
+                    "acconto": true,
+                    "pagato": false
+                },
+                "Pietro Sguaizer": {
+                    "acconto": false,
+                    "pagato": false
+                },
+                "Daniele Tonni": {
+                    "acconto": false,
+                    "pagato": false
+                },
+                "Ethan Greci": {
+                    "acconto": false,
+                    "pagato": false
+                },
+                "Mirko Bardelloni": {
+                    "acconto": false,
+                    "pagato": false
+                },
+                "Antonio Cavuoto": {
+                    "acconto": false,
+                    "pagato": false
+                },
+                "Michele Felice": {
+                    "acconto": false,
+                    "pagato": false
+                },
+                "Matteo Bignotti": {
+                    "acconto": false,
+                    "pagato": false
+                },
+                "Nicolò Scuri": {
+                    "acconto": false,
+                    "pagato": false
+                },
+                "Alessandro Grande": {
+                    "acconto": false,
+                    "pagato": false
+                },
+                "Matteo Lauro": {
+                    "acconto": false,
+                    "pagato": false
+                },
+                "Christian Manzoni": {
+                    "acconto": false,
+                    "pagato": false
+                },
+                "Gabriele Buttarelli": {
+                    "acconto": false,
+                    "pagato": false
+                },
+                "Andrea Bashmili": {
+                    "acconto": false,
+                    "pagato": false
+                }
+            },
+            "partecipanti": {
+                "Mirko Bardelloni": 1,
+                "Andrea Bashmili": 1,
+                "Matteo Bignotti": 1,
+                "Gabriele Buttarelli": 4,
+                "Lorenzo Carè": 4,
+                "Antonio Cavuoto": 1,
+                "Edoardo Cominelli": 1,
+                "Samuele Cullè": 1,
+                "Michele Felice": 4,
+                "Alessandro Grande": 1,
+                "Ethan Greci": 1,
+                "Omar Gueye": 1,
+                "Matteo Lauro": 3,
+                "Christian Manzoni": 1,
+                "Mario Montanari": 1,
+                "Nicolò Scuri": 1,
+                "Pietro Sguaizer": 1,
+                "Daniele Tonni": 1
+            }
         }
     }
 }
