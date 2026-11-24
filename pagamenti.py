@@ -338,21 +338,23 @@ st.markdown(
         [data-testid="stHorizontalBlock"] {
             flex-wrap: nowrap !important;
             align-items: center !important;
-            gap: 4px !important;
+            gap: 2px !important;
         }
 
         [data-testid="stColumn"] {
             min-width: 0 !important;
             flex: 1 1 auto !important;
+            padding-left: 1px !important;
+            padding-right: 1px !important;
         }
 
         .stButton button {
             border-radius: 6px;
             font-weight: 600;
-            min-height: 32px;
-            max-height: 38px;
-            padding: 0px 6px !important;
-            font-size: 0.8rem;
+            min-height: 30px;
+            max-height: 36px;
+            padding: 0px 4px !important;
+            font-size: 0.75rem;
         }
 
         button[kind="primary"] {
@@ -398,18 +400,49 @@ st.markdown(
         .stSelectbox div[data-baseweb="select"], .stTextInput input {
             background-color: #ffffff !important;
             color: #0f172a !important;
-            border-radius: 8px !important;
+            border-radius: 6px !important;
             border-color: #cbd5e1 !important;
+        }
+
+        /* Riduzione font e ingombro dei menu a discesa (Contanti / Bonifico) */
+        .row-riga-giocatore [data-testid="stSelectbox"] > div > div {
+            min-height: 28px !important;
+            height: 28px !important;
+            padding-top: 0px !important;
+            padding-bottom: 0px !important;
+            padding-left: 4px !important;
+            padding-right: 4px !important;
+        }
+        .row-riga-giocatore [data-testid="stSelectbox"] span,
+        .row-riga-giocatore [data-testid="stSelectbox"] div {
+            font-size: 0.62rem !important;
+            line-height: 1.1 !important;
+        }
+        .row-riga-giocatore [data-testid="stCheckbox"] label span {
+            font-size: 0.65rem !important;
+        }
+        .row-riga-giocatore [data-testid="stNumberInput"] input {
+            font-size: 0.68rem !important;
+            padding: 2px 4px !important;
+            min-height: 28px !important;
+            height: 28px !important;
         }
 
         @media (max-width: 640px) {
             .block-container {
-                padding-left: 4px !important;
-                padding-right: 4px !important;
+                padding-left: 3px !important;
+                padding-right: 3px !important;
                 padding-top: 15px !important;
             }
             h1 {
                 font-size: 1.4rem !important;
+            }
+            .row-riga-giocatore [data-testid="stSelectbox"] span,
+            .row-riga-giocatore [data-testid="stSelectbox"] div {
+                font-size: 0.55rem !important;
+            }
+            .row-riga-giocatore [data-testid="stCheckbox"] label span {
+                font-size: 0.58rem !important;
             }
         }
     </style>
@@ -825,25 +858,23 @@ else:
             m_acc_corrente,
             m_pag_corrente,
         ) = calcola_quota_giocatore(
-            pagamenti_dict.get(g, record_pagamento_vuoto())
-            if False
-            else pagamenti_dict.get(giocatore, record_pagamento_vuoto()),
+            pagamenti_dict.get(giocatore, record_pagamento_vuoto()),
             quota_unitaria,
             num_part_corrente,
         )
 
         st.markdown(
-            '<div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 4px 6px; margin-bottom: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.02);">',
+            '<div class="row-riga-giocatore" style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 3px 4px; margin-bottom: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.02);">',
             unsafe_allow_html=True,
         )
 
         c_name, c_acc, c_m_acc, c_pag, c_m_pag, c_num, c_badge, c_del = st.columns(
-            [2.0, 0.95, 1.05, 0.95, 1.05, 0.75, 1.05, 0.45], gap="small"
+            [1.85, 0.9, 1.25, 0.9, 1.25, 0.68, 1.0, 0.42], gap="small"
         )
 
         with c_name:
             st.markdown(
-                f"<div style='padding-top: 6px; font-weight: 600; font-size: 0.82rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;'>{giocatore}</div>",
+                f"<div style='padding-top: 6px; font-weight: 600; font-size: 0.78rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;'>{giocatore}</div>",
                 unsafe_allow_html=True,
             )
 
@@ -941,17 +972,17 @@ else:
         with c_badge:
             if stato_g == "PAGATO":
                 st.markdown(
-                    "<div style='padding-top: 6px; text-align: center;'><span style='background-color: #d1fae5; color: #065f46; padding: 2px 4px; border-radius: 4px; font-size: 0.6em; font-weight: 700;'>PAGATO</span></div>",
+                    "<div style='padding-top: 6px; text-align: center;'><span style='background-color: #d1fae5; color: #065f46; padding: 2px 3px; border-radius: 4px; font-size: 0.56rem; font-weight: 700;'>PAGATO</span></div>",
                     unsafe_allow_html=True,
                 )
             elif stato_g == "ACCONTO":
                 st.markdown(
-                    f"<div style='padding-top: 6px; text-align: center;'><span style='background-color: #fef3c7; color: #92400e; padding: 2px 4px; border-radius: 4px; font-size: 0.6em; font-weight: 700;'>ACCONTO ({inc_g}€)</span></div>",
+                    f"<div style='padding-top: 6px; text-align: center;'><span style='background-color: #fef3c7; color: #92400e; padding: 2px 3px; border-radius: 4px; font-size: 0.56rem; font-weight: 700;'>ACC.{inc_g}€</span></div>",
                     unsafe_allow_html=True,
                 )
             else:
                 st.markdown(
-                    "<div style='padding-top: 6px; text-align: center;'><span style='background-color: #fee2e2; color: #991b1b; padding: 2px 4px; border-radius: 4px; font-size: 0.6em; font-weight: 700;'>IN ATTESA</span></div>",
+                    "<div style='padding-top: 6px; text-align: center;'><span style='background-color: #fee2e2; color: #991b1b; padding: 2px 3px; border-radius: 4px; font-size: 0.56rem; font-weight: 700;'>ATTESA</span></div>",
                     unsafe_allow_html=True,
                 )
 
