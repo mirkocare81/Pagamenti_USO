@@ -45,7 +45,7 @@
             ],
             "pagamenti": {
                 "Lorenzo Carè": {
-                    "acconto": false,
+                    "acconto": true,
                     "pagato": false
                 },
                 "Samuele Cullè": {
