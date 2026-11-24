@@ -40,6 +40,7 @@ IMPORTO_ACCONTO_BASE = 100
 IMPORTO_SALDO_BASE = 160
 PIN_ADMIN_DEFAULT = "Uso2011"
 PIN_MODIFICA_DEFAULT = "Uso2011"
+METODI_PAGAMENTO = ["Contanti", "Bonifico"]
 
 # --- GESTIONE PERSISTENZA DATI (FILE JSON) ---
 FILE_DATI = "dati_pagamenti.json"
@@ -60,14 +61,26 @@ def get_importi_spunte(quota_unitaria):
     return acconto, saldo
 
 
-def calcola_quota_giocatore(stato_record, quota_unitaria, num_persone):
-    """Restituisce (importo_incassato, stato_testo, has_acconto, has_pagato)."""
+def normalizza_record_pagamento(stato_record):
+    """Restituisce (has_acconto, has_pagato, metodo_acconto, metodo_pagato)."""
     if isinstance(stato_record, dict):
         has_acconto = bool(stato_record.get("acconto", False))
         has_pagato = bool(stato_record.get("pagato", False))
-    else:
-        has_acconto = False
-        has_pagato = bool(stato_record)
+        m_acc = stato_record.get("metodo_acconto", "Contanti")
+        m_pag = stato_record.get("metodo_pagato", "Contanti")
+        if m_acc not in METODI_PAGAMENTO:
+            m_acc = "Contanti"
+        if m_pag not in METODI_PAGAMENTO:
+            m_pag = "Contanti"
+        return has_acconto, has_pagato, m_acc, m_pag
+    return False, bool(stato_record), "Contanti", "Contanti"
+
+
+def calcola_quota_giocatore(stato_record, quota_unitaria, num_persone):
+    """Restituisce (importo_incassato, stato_testo, has_acconto, has_pagato, m_acc, m_pag)."""
+    has_acconto, has_pagato, m_acc, m_pag = normalizza_record_pagamento(
+        stato_record
+    )
 
     val_acconto, val_saldo = get_importi_spunte(quota_unitaria)
     quota_unit_incassata = (val_acconto if has_acconto else 0) + (
@@ -83,7 +96,16 @@ def calcola_quota_giocatore(stato_record, quota_unitaria, num_persone):
     else:
         stato = "IN ATTESA"
 
-    return importo_incassato, stato, has_acconto, has_pagato
+    return importo_incassato, stato, has_acconto, has_pagato, m_acc, m_pag
+
+
+def record_pagamento_vuoto():
+    return {
+        "acconto": False,
+        "pagato": False,
+        "metodo_acconto": "Contanti",
+        "metodo_pagato": "Contanti",
+    }
 
 
 def struttura_default():
@@ -103,7 +125,7 @@ def struttura_default():
     giocatori_ordinati = ordina_per_cognome(giocatori_iniziali)
     partecipanti_iniziali = {g: 1 for g in giocatori_ordinati}
     pagamenti_iniziali = {
-        g: {"acconto": False, "pagato": False} for g in giocatori_ordinati
+        g: record_pagamento_vuoto() for g in giocatori_ordinati
     }
 
     return {
@@ -191,14 +213,15 @@ def normalizza_stato_completo(grezzo):
             if "pagamenti" not in proj or not isinstance(proj["pagamenti"], dict):
                 proj["pagamenti"] = {}
             for g in proj["giocatori"]:
-                if g not in proj["pagamenti"]:
-                    proj["pagamenti"][g] = {"acconto": False, "pagato": False}
-                elif not isinstance(proj["pagamenti"][g], dict):
-                    vecchio_bool = bool(proj["pagamenti"][g])
-                    proj["pagamenti"][g] = {
-                        "acconto": False,
-                        "pagato": vecchio_bool,
-                    }
+                has_a, has_p, m_a, m_p = normalizza_record_pagamento(
+                    proj["pagamenti"].get(g, record_pagamento_vuoto())
+                )
+                proj["pagamenti"][g] = {
+                    "acconto": has_a,
+                    "pagato": has_p,
+                    "metodo_acconto": m_a,
+                    "metodo_pagato": m_p,
+                }
                 if g not in proj["partecipanti"]:
                     proj["partecipanti"][g] = 1
 
@@ -241,8 +264,15 @@ def genera_csv(progetto_nome, dati_progetto):
     for g in giocatori:
         num_persone = partecipanti.get(g, 1)
         totale_dovuto = quota * num_persone
-        totale_pagato, stato, has_acconto, has_pagato = calcola_quota_giocatore(
-            pagamenti.get(g, {"acconto": False, "pagato": False}),
+        (
+            totale_pagato,
+            stato,
+            has_acconto,
+            has_pagato,
+            m_acc,
+            m_pag,
+        ) = calcola_quota_giocatore(
+            pagamenti.get(g, record_pagamento_vuoto()),
             quota,
             num_persone,
         )
@@ -252,7 +282,9 @@ def genera_csv(progetto_nome, dati_progetto):
                 "Giocatore": g,
                 "Partecipanti al seguito": num_persone,
                 "Acconto (100€)": "SI" if has_acconto else "NO",
+                "Metodo Acconto": m_acc if has_acconto else "",
                 "Pagato (160€)": "SI" if has_pagato else "NO",
+                "Metodo Pagato": m_pag if has_pagato else "",
                 "Stato Pagamento": stato,
                 "Quota Unitaria (€)": quota,
                 "Totale Dovuto (€)": totale_dovuto,
@@ -269,7 +301,9 @@ def genera_csv(progetto_nome, dati_progetto):
                 "Giocatore",
                 "Partecipanti al seguito",
                 "Acconto (100€)",
+                "Metodo Acconto",
                 "Pagato (160€)",
+                "Metodo Pagato",
                 "Stato Pagamento",
                 "Quota Unitaria (€)",
                 "Totale Dovuto (€)",
@@ -722,8 +756,8 @@ for g in giocatori:
     totale_partecipanti_teorico += num_p
     dovuto_g = quota_unitaria * num_p
     valore_totale_atteso += dovuto_g
-    inc_g, stato_g, _, _ = calcola_quota_giocatore(
-        pagamenti_dict.get(g, {"acconto": False, "pagato": False}),
+    inc_g, stato_g, _, _, _, _ = calcola_quota_giocatore(
+        pagamenti_dict.get(g, record_pagamento_vuoto()),
         quota_unitaria,
         num_p,
     )
@@ -765,19 +799,16 @@ with st.expander("➕ Aggiungi Giocatore"):
         if nuovo_giocatore and nuovo_giocatore not in giocatori:
             dati_attivi["giocatori"].append(nuovo_giocatore)
             dati_attivi["giocatori"] = ordina_per_cognome(dati_attivi["giocatori"])
-            dati_attivi["pagamenti"][nuovo_giocatore] = {
-                "acconto": False,
-                "pagato": False,
-            }
+            dati_attivi["pagamenti"][nuovo_giocatore] = record_pagamento_vuoto()
             dati_attivi["partecipanti"][nuovo_giocatore] = 1
             salva_dati(stato_app)
             st.success(f"Aggiunto: {nuovo_giocatore}")
             st.rerun()
 
-# --- SEZIONE 3: Lista interattiva con spunte Acconto (100€) e Pagato (160€) ---
+# --- SEZIONE 3: Lista interattiva con spunte e metodi Contanti/Bonifico ---
 st.markdown("---")
 st.markdown(
-    f"<p style='color: #64748b; font-size: 0.85em; margin-bottom: 10px;'>Spunte: <b>Acconto ({val_acconto_u}€)</b> e <b>Pagato ({val_saldo_u}€)</b> · Stati: <b>IN ATTESA</b>, <b>ACCONTO</b>, <b>PAGATO</b>.</p>",
+    f"<p style='color: #64748b; font-size: 0.85em; margin-bottom: 10px;'>Spunte: <b>Acconto ({val_acconto_u}€)</b> e <b>Pagato ({val_saldo_u}€)</b> con metodo <b>Contanti/Bonifico</b> · Stati: <b>IN ATTESA</b>, <b>ACCONTO</b>, <b>PAGATO</b>.</p>",
     unsafe_allow_html=True,
 )
 
@@ -786,8 +817,17 @@ if not giocatori:
 else:
     for giocatore in list(giocatori):
         num_part_corrente = partecipanti_dict.get(giocatore, 1)
-        inc_g, stato_g, has_acc, has_pag = calcola_quota_giocatore(
-            pagamenti_dict.get(giocatore, {"acconto": False, "pagato": False}),
+        (
+            inc_g,
+            stato_g,
+            has_acc,
+            has_pag,
+            m_acc_corrente,
+            m_pag_corrente,
+        ) = calcola_quota_giocatore(
+            pagamenti_dict.get(g, record_pagamento_vuoto())
+            if False
+            else pagamenti_dict.get(giocatore, record_pagamento_vuoto()),
             quota_unitaria,
             num_part_corrente,
         )
@@ -797,19 +837,19 @@ else:
             unsafe_allow_html=True,
         )
 
-        c_name, c_acc, c_pag, c_num, c_badge, c_del = st.columns(
-            [2.6, 1.1, 1.1, 0.9, 1.1, 0.5], gap="small"
+        c_name, c_acc, c_m_acc, c_pag, c_m_pag, c_num, c_badge, c_del = st.columns(
+            [2.0, 0.95, 1.05, 0.95, 1.05, 0.75, 1.05, 0.45], gap="small"
         )
 
         with c_name:
             st.markdown(
-                f"<div style='padding-top: 6px; font-weight: 600; font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;'>{giocatore}</div>",
+                f"<div style='padding-top: 6px; font-weight: 600; font-size: 0.82rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;'>{giocatore}</div>",
                 unsafe_allow_html=True,
             )
 
         with c_acc:
             nuovo_acc = st.checkbox(
-                f"Acc. {val_acconto_u}€",
+                f"Acc.{val_acconto_u}€",
                 value=has_acc,
                 key=f"acc_{giocatore}",
                 disabled=not puo_modificare,
@@ -819,13 +859,35 @@ else:
                 pagamenti_dict[giocatore] = {
                     "acconto": nuovo_acc,
                     "pagato": has_pag,
+                    "metodo_acconto": m_acc_corrente,
+                    "metodo_pagato": m_pag_corrente,
+                }
+                salva_dati(stato_app)
+                st.rerun()
+
+        with c_m_acc:
+            nuovo_m_acc = st.selectbox(
+                f"Metodo acconto {giocatore}",
+                options=METODI_PAGAMENTO,
+                index=METODI_PAGAMENTO.index(m_acc_corrente),
+                key=f"m_acc_{giocatore}",
+                disabled=not puo_modificare,
+                label_visibility="collapsed",
+                help="Metodo pagamento acconto",
+            )
+            if puo_modificare and nuovo_m_acc != m_acc_corrente:
+                pagamenti_dict[giocatore] = {
+                    "acconto": has_acc,
+                    "pagato": has_pag,
+                    "metodo_acconto": nuovo_m_acc,
+                    "metodo_pagato": m_pag_corrente,
                 }
                 salva_dati(stato_app)
                 st.rerun()
 
         with c_pag:
             nuovo_pag = st.checkbox(
-                f"Pag. {val_saldo_u}€",
+                f"Pag.{val_saldo_u}€",
                 value=has_pag,
                 key=f"pag_{giocatore}",
                 disabled=not puo_modificare,
@@ -835,6 +897,28 @@ else:
                 pagamenti_dict[giocatore] = {
                     "acconto": has_acc,
                     "pagato": nuovo_pag,
+                    "metodo_acconto": m_acc_corrente,
+                    "metodo_pagato": m_pag_corrente,
+                }
+                salva_dati(stato_app)
+                st.rerun()
+
+        with c_m_pag:
+            nuovo_m_pag = st.selectbox(
+                f"Metodo saldo {giocatore}",
+                options=METODI_PAGAMENTO,
+                index=METODI_PAGAMENTO.index(m_pag_corrente),
+                key=f"m_pag_{giocatore}",
+                disabled=not puo_modificare,
+                label_visibility="collapsed",
+                help="Metodo pagamento saldo/quota",
+            )
+            if puo_modificare and nuovo_m_pag != m_pag_corrente:
+                pagamenti_dict[giocatore] = {
+                    "acconto": has_acc,
+                    "pagato": has_pag,
+                    "metodo_acconto": m_acc_corrente,
+                    "metodo_pagato": nuovo_m_pag,
                 }
                 salva_dati(stato_app)
                 st.rerun()
@@ -915,8 +999,8 @@ partecipanti_saldati = 0
 for g in giocatori:
     num_p = partecipanti_dict.get(g, 1)
     valore_totale_atteso += quota_unitaria * num_p
-    inc_g, stato_g, _, _ = calcola_quota_giocatore(
-        pagamenti_dict.get(g, {"acconto": False, "pagato": False}),
+    inc_g, stato_g, _, _, _, _ = calcola_quota_giocatore(
+        pagamenti_dict.get(g, record_pagamento_vuoto()),
         quota_unitaria,
         num_p,
     )
@@ -1007,14 +1091,14 @@ with st.expander("📱 Genera Promemoria WhatsApp"):
     for g in giocatori:
         num_p = partecipanti_dict.get(g, 1)
         dovuto_g = quota_unitaria * num_p
-        inc_g, stato_g, _, _ = calcola_quota_giocatore(
-            pagamenti_dict.get(g, {"acconto": False, "pagato": False}),
+        inc_g, stato_g, has_a, has_p, m_a, m_p = calcola_quota_giocatore(
+            pagamenti_dict.get(g, record_pagamento_vuoto()),
             quota_unitaria,
             num_p,
         )
         residuo_g = max(0, dovuto_g - inc_g)
         if residuo_g > 0:
-            non_saldati.append((g, num_p, stato_g, inc_g, residuo_g))
+            non_saldati.append((g, num_p, stato_g, inc_g, residuo_g, has_a, m_a))
 
     if not non_saldati:
         st.success("Tutti in regola! Nessun promemoria da inviare. 🎉")
@@ -1024,10 +1108,11 @@ with st.expander("📱 Genera Promemoria WhatsApp"):
         testo_msg += "Risultano ancora da completare le seguenti quote:\n"
 
         totale_residuo = 0
-        for g, num_pers, stato_g, inc_g, residuo_g in non_saldati:
+        for g, num_pers, stato_g, inc_g, residuo_g, has_a, m_a in non_saldati:
             totale_residuo += residuo_g
+            dettaglio_acc = f" · Acc. {m_a}" if has_a else ""
             testo_msg += (
-                f"• {g} (Pers: {num_pers} · {stato_g} · Versati: {inc_g} € · Residuo: {residuo_g} €)\n"
+                f"• {g} (Pers: {num_pers} · {stato_g}{dettaglio_acc} · Versati: {inc_g} € · Residuo: {residuo_g} €)\n"
             )
 
         testo_msg += f"\nTotale residuo da incassare: *{totale_residuo} €*\n"
