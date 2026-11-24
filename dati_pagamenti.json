@@ -5,11 +5,15 @@
             "ruolo": "modifica",
             "pin": "Uso2011"
         },
-        "Dirigente": {
+        "Stefano Maffioli": {
+            "ruolo": "modifica",
+            "pin": "USO1969"
+        },
+        "Stefano Bresciani": {
             "ruolo": "modifica",
             "pin": "Uso2011"
         },
-        "Sola Lettura": {
+        "Alberto Maestri": {
             "ruolo": "lettura",
             "pin": ""
         }
