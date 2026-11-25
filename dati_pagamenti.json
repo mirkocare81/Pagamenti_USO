@@ -129,9 +129,9 @@
                     "metodo_pagato": "Contanti"
                 },
                 "Matteo Lauro": {
-                    "acconto": false,
+                    "acconto": true,
                     "pagato": false,
-                    "metodo_acconto": "Contanti",
+                    "metodo_acconto": "Bonifico",
                     "metodo_pagato": "Contanti"
                 },
                 "Christian Manzoni": {
@@ -178,7 +178,7 @@
                 "Alessandro Grande": 1,
                 "Ethan Greci": 1,
                 "Omar Gueye": 1,
-                "Matteo Lauro": 3,
+                "Matteo Lauro": 1,
                 "Christian Manzoni": 1,
                 "Mario Montanari": 1,
                 "Nicolò Scuri": 1,
