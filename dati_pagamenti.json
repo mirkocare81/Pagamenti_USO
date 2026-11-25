@@ -46,83 +46,123 @@
             "pagamenti": {
                 "Lorenzo Carè": {
                     "acconto": true,
-                    "pagato": false
+                    "pagato": false,
+                    "metodo_acconto": "Bonifico",
+                    "metodo_pagato": "Contanti"
                 },
                 "Samuele Cullè": {
                     "acconto": false,
-                    "pagato": false
+                    "pagato": false,
+                    "metodo_acconto": "Contanti",
+                    "metodo_pagato": "Contanti"
                 },
                 "Edoardo Cominelli": {
                     "acconto": false,
-                    "pagato": false
+                    "pagato": false,
+                    "metodo_acconto": "Contanti",
+                    "metodo_pagato": "Contanti"
                 },
                 "Mario Montanari": {
                     "acconto": false,
-                    "pagato": false
+                    "pagato": false,
+                    "metodo_acconto": "Contanti",
+                    "metodo_pagato": "Contanti"
                 },
                 "Omar Gueye": {
                     "acconto": true,
-                    "pagato": false
+                    "pagato": false,
+                    "metodo_acconto": "Contanti",
+                    "metodo_pagato": "Contanti"
                 },
                 "Pietro Sguaizer": {
                     "acconto": false,
-                    "pagato": false
+                    "pagato": false,
+                    "metodo_acconto": "Contanti",
+                    "metodo_pagato": "Contanti"
                 },
                 "Daniele Tonni": {
                     "acconto": false,
-                    "pagato": false
+                    "pagato": false,
+                    "metodo_acconto": "Contanti",
+                    "metodo_pagato": "Contanti"
                 },
                 "Ethan Greci": {
                     "acconto": false,
-                    "pagato": false
+                    "pagato": false,
+                    "metodo_acconto": "Contanti",
+                    "metodo_pagato": "Contanti"
                 },
                 "Mirko Bardelloni": {
                     "acconto": false,
-                    "pagato": false
+                    "pagato": false,
+                    "metodo_acconto": "Contanti",
+                    "metodo_pagato": "Contanti"
                 },
                 "Antonio Cavuoto": {
                     "acconto": false,
-                    "pagato": false
+                    "pagato": false,
+                    "metodo_acconto": "Contanti",
+                    "metodo_pagato": "Contanti"
                 },
                 "Michele Felice": {
                     "acconto": false,
-                    "pagato": false
+                    "pagato": false,
+                    "metodo_acconto": "Contanti",
+                    "metodo_pagato": "Contanti"
                 },
                 "Matteo Bignotti": {
                     "acconto": false,
-                    "pagato": false
+                    "pagato": false,
+                    "metodo_acconto": "Contanti",
+                    "metodo_pagato": "Contanti"
                 },
                 "Nicolò Scuri": {
                     "acconto": false,
-                    "pagato": false
+                    "pagato": false,
+                    "metodo_acconto": "Contanti",
+                    "metodo_pagato": "Contanti"
                 },
                 "Alessandro Grande": {
                     "acconto": false,
-                    "pagato": false
+                    "pagato": false,
+                    "metodo_acconto": "Contanti",
+                    "metodo_pagato": "Contanti"
                 },
                 "Matteo Lauro": {
                     "acconto": false,
-                    "pagato": false
+                    "pagato": false,
+                    "metodo_acconto": "Contanti",
+                    "metodo_pagato": "Contanti"
                 },
                 "Christian Manzoni": {
                     "acconto": false,
-                    "pagato": false
+                    "pagato": false,
+                    "metodo_acconto": "Contanti",
+                    "metodo_pagato": "Contanti"
                 },
                 "Gabriele Buttarelli": {
                     "acconto": false,
-                    "pagato": false
+                    "pagato": false,
+                    "metodo_acconto": "Contanti",
+                    "metodo_pagato": "Contanti"
                 },
                 "Andrea Bashmili": {
                     "acconto": false,
-                    "pagato": false
+                    "pagato": false,
+                    "metodo_acconto": "Contanti",
+                    "metodo_pagato": "Contanti"
                 },
                 "Mr Fabio Fontana": {
                     "acconto": false,
-                    "pagato": false
+                    "pagato": false,
+                    "metodo_acconto": "Contanti",
+                    "metodo_pagato": "Contanti"
                 },
                 "Mr Alessandro Donati": {
                     "acconto": false,
-                    "pagato": false
+                    "pagato": false,
+                    "metodo_acconto": "Contanti",
+                    "metodo_pagato": "Contanti"
                 }
             },
             "partecipanti": {
