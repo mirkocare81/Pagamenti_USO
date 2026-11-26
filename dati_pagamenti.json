@@ -153,9 +153,9 @@
                     "metodo_pagato": "Contanti"
                 },
                 "Mr Fabio Fontana": {
-                    "acconto": false,
+                    "acconto": true,
                     "pagato": false,
-                    "metodo_acconto": "Contanti",
+                    "metodo_acconto": "Bonifico",
                     "metodo_pagato": "Contanti"
                 },
                 "Mr Alessandro Donati": {
